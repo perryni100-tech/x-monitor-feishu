@@ -140,6 +140,17 @@ def test_discovery_rule_supports_queries():
     assert "-is:reply" in value
 
 
+def test_railway_webhook_url():
+    os.environ["RAILWAY_PUBLIC_DOMAIN"] = "ai-x-monitor.example.up.railway.app"
+    os.environ["WEBHOOK_SECRET"] = "secret123"
+    from app.config import get_settings
+    get_settings.cache_clear()
+
+    assert get_settings().webhook_url == (
+        "https://ai-x-monitor.example.up.railway.app/webhook/twitterapi/secret123"
+    )
+
+
 if __name__ == "__main__":
     test_parse_and_dedup()
     test_delivery_idempotency()
@@ -147,4 +158,5 @@ if __name__ == "__main__":
     test_push_worker_retry()
     test_ai_creator_top10_and_threshold()
     test_discovery_rule_supports_queries()
+    test_railway_webhook_url()
     print("\n🎉 全部冒烟测试通过")

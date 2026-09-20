@@ -21,10 +21,12 @@ from app.config import get_settings
 from app.twitterapi import TwitterAPIClient
 
 RULES_FILE = Path(__file__).resolve().parent.parent / "config" / "rules.yml"
+RULES_EXAMPLE_FILE = Path(__file__).resolve().parent.parent / "config" / "rules.example.yml"
 
 
 def load_config() -> dict:
-    return yaml.safe_load(RULES_FILE.read_text(encoding="utf-8"))
+    path = RULES_FILE if RULES_FILE.exists() else RULES_EXAMPLE_FILE
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def check_duplicates(cfg: dict) -> list[str]:

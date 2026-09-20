@@ -33,14 +33,14 @@ rules:
 
   # ---- 普通规则：只推纯原创 ----
   - name: group_a
-    active: true
+    active: false
     handles:
       - example_user_1
       - example_user_2
       - example_user_3
 
   - name: group_b
-    active: true
+    active: false
     handles:
       - example_user_4
       - example_user_5
@@ -49,7 +49,7 @@ rules:
   # ---- 重点账号：放开引用+回复（只排除纯转推），更短间隔 ----
   #   记得把 handle 也加进 .env 的 PUSH_ALLOW_REPLY_QUOTE
   - name: vip
-    active: true
+    active: false
     interval_seconds: 900
     exclude: [retweet]
     handles:

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # HTTPS 入口
     domain: str = ""
     webhook_port: int = 8443
+    # 托管平台提供的公网地址。Railway 会自动注入 RAILWAY_PUBLIC_DOMAIN。
+    public_base_url: str = ""
+    railway_public_domain: str = ""
 
     # DB
     db_path: str = "./data/monitor.db"
@@ -110,6 +113,10 @@ class Settings(BaseSettings):
 
     @property
     def webhook_url(self) -> str:
+        if self.public_base_url:
+            return f"{self.public_base_url.rstrip('/')}/webhook/twitterapi/{self.webhook_secret}"
+        if self.railway_public_domain:
+            return f"https://{self.railway_public_domain}/webhook/twitterapi/{self.webhook_secret}"
         port = f":{self.webhook_port}" if self.webhook_port not in (443, 0) else ""
         return f"https://{self.domain}{port}/webhook/twitterapi/{self.webhook_secret}"
 

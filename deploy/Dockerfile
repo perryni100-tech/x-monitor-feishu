@@ -11,8 +11,9 @@ COPY app ./app
 COPY scripts ./scripts
 COPY schema.sql ./schema.sql
 COPY config ./config
+COPY deploy/railway-start.sh ./deploy/railway-start.sh
 
 EXPOSE 8000
 
 # uvicorn 单进程即可（内嵌 APScheduler，禁止多进程避免重复调度）
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["bash", "deploy/railway-start.sh"]

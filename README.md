@@ -77,6 +77,16 @@ FastAPI 接收端 ──► SQLite（tweet_id 去重 + delivery 幂等）
 
 ## 快速开始
 
+### 没有服务器：Railway 部署（推荐）
+
+1. 在 Railway 使用 GitHub 登录并选择本仓库。
+2. Railway 会读取根目录的 `railway.json`，使用 `deploy/Dockerfile` 构建。
+3. 为服务生成公网域名，并挂载一个 Volume 到 `/app/data`，用于持久保存 SQLite。
+4. 在 Variables 中填写 `WEBHOOK_SECRET`、`TWITTERAPI_KEY`、`FEISHU_WEBHOOK_URL`、`DEEPSEEK_API_KEY`；其余配置有默认值。
+5. 部署成功后，启动脚本会自动初始化数据库并同步 X 发现规则。
+
+Railway 自动提供 HTTPS，不需要购买域名，也不需要 Cloudflare。服务运行在云端，不受 Mac 熄屏、断网或关机影响。
+
 ### 1. 前置准备
 
 | 需要 | 说明 |

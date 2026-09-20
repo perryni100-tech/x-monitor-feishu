@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     ai_summary_min_chars: int = 100
     # 去重账本上限：tweets 表最多保留多少条（含已推送），超出按时间裁剪
     pushed_retention: int = 5000
+    # 本项目以每日精选为主；需要逐条实时推送时再显式开启。
+    realtime_push_enabled: bool = False
 
     # ---- 昨日信号 早报 ----
     # DeepSeek（全量去噪/分类/主题聚合，便宜）
@@ -74,11 +76,12 @@ class Settings(BaseSettings):
     report_model: str = "deepseek-v4-pro"
     report_enabled: bool = True
     # 进入早报写作的重点推文上限（30-80）
-    report_select_max: int = 80
+    report_select_max: int = 10
+    report_min_score: float = 7.0
     # 趋势记忆回溯天数（连续信号）
     report_trend_days: int = 7
     # 早报触发时间（北京时区小时；北京 9:00）
-    report_hour_beijing: int = 9
+    report_hour_beijing: int = 12
 
     # ---- 成本核算 ----
     # 覆盖模型单价（$/1M tokens）JSON：{"gpt-5.4":[in,out],"deepseek-v4-flash":[in,out]}

@@ -14,6 +14,23 @@ interval_seconds: 1800   # 全局默认间隔（秒）。检查越频繁越贵�
 default_exclude: [retweet, reply, quote]   # 默认只推纯原创；单条规则可用 exclude 覆盖
 
 rules:
+  # ---- 全网发现：搜索未关注账号的中文 AI 自媒体内容 ----
+  # 每条 TwitterAPI.io filter rule 最长 255 字符，关键词较多时请拆组。
+  - name: ai_creator_discovery_a
+    active: true
+    queries:
+      - 'lang:zh ("AI自媒体" OR "AI内容创作" OR "AI短视频" OR "AI写作")'
+
+  - name: ai_creator_discovery_b
+    active: true
+    queries:
+      - 'lang:zh ("AI小红书" OR "AI公众号" OR "AI视频号" OR "AI变现")'
+
+  - name: ai_creator_discovery_c
+    active: true
+    queries:
+      - 'lang:zh ("AI工作流" OR "AI副业" OR "内容自动化" OR "自媒体变现")'
+
   # ---- 普通规则：只推纯原创 ----
   - name: group_a
     active: true

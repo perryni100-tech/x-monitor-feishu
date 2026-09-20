@@ -32,7 +32,7 @@ def check_duplicates(cfg: dict) -> list[str]:
     seen: dict[str, str] = {}
     dups: list[str] = []
     for rule in cfg["rules"]:
-        for h in rule["handles"]:
+        for h in rule.get("handles", []):
             key = h.lstrip("@").lower()
             if key in seen:
                 dups.append(f"{key}（在 {seen[key]} 和 {rule['name']}）")
@@ -46,9 +46,12 @@ _EXCLUDE_OP = {"retweet": "-is:retweet", "reply": "-is:reply", "quote": "-is:quo
 _DEFAULT_EXCLUDE = ["retweet", "reply", "quote"]
 
 
-def build_rule_value(handles: list[str], exclude: list[str]) -> str:
-    """(from:a OR from:b ...) + 按 exclude 追加 -is:xxx  全部小写、去 @。"""
+def build_rule_value(handles: list[str], queries: list[str], exclude: list[str]) -> str:
+    """合并账号池与 X 搜索词；两者都只产生 X/Twitter 数据。"""
     parts = [f"from:{h.lstrip('@').lower()}" for h in handles]
+    parts.extend(f"({q.strip()})" for q in queries if q.strip())
+    if not parts:
+        raise ValueError("每条规则至少需要一个 handles 或 queries 条目")
     base = "(" + " OR ".join(parts) + ")"
     ex = " ".join(_EXCLUDE_OP[e] for e in exclude if e in _EXCLUDE_OP)
     return f"{base} {ex}".strip()
@@ -66,7 +69,7 @@ def cmd_build() -> None:
     default_interval = cfg.get("interval_seconds", 600)
     default_ex = cfg.get("default_exclude", _DEFAULT_EXCLUDE)
     for rule in cfg["rules"]:
-        value = build_rule_value(rule["handles"], rule.get("exclude", default_ex))
+        value = build_rule_value(rule.get("handles", []), rule.get("queries", []), rule.get("exclude", default_ex))
         interval = rule.get("interval_seconds", default_interval)
         active = rule.get("active", True)
         print(f"\n# {rule['name']}  active={active} interval={interval}s  ({len(value)} 字符)")
@@ -91,8 +94,8 @@ def cmd_sync() -> None:
         existing = {r.get("tag"): r for r in client.list_rules()}
         for rule in cfg["rules"]:
             name = rule["name"]
-            handles = rule["handles"]
-            value = build_rule_value(handles, rule.get("exclude", default_ex))
+            handles = rule.get("handles", [])
+            value = build_rule_value(handles, rule.get("queries", []), rule.get("exclude", default_ex))
             interval = rule.get("interval_seconds", default_interval)
             active = rule.get("active", True)
 
@@ -151,7 +154,7 @@ def cmd_userids() -> None:
     total = 0
     try:
         for rule in cfg["rules"]:
-            for h in rule["handles"]:
+            for h in rule.get("handles", []):
                 total += 1
                 handle = h.lstrip("@").lower()
                 user = None

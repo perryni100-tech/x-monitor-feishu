@@ -73,6 +73,9 @@ def test_feishu_sign():
 
 def test_push_worker_retry(monkeypatch=None):
     db = _setup_env()
+    os.environ["REALTIME_PUSH_ENABLED"] = "true"
+    from app.config import get_settings
+    get_settings.cache_clear()
     from app import notifier, push_worker
 
     db.insert_tweet(
@@ -105,9 +108,43 @@ def test_push_worker_retry(monkeypatch=None):
     print("✅ 推送失败重试入队")
 
 
+def test_ai_creator_top10_and_threshold():
+    _setup_env()
+    os.environ["REPORT_SELECT_MAX"] = "10"
+    os.environ["REPORT_MIN_SCORE"] = "7"
+    from app.config import get_settings
+    get_settings.cache_clear()
+    from app import report
+
+    items = [
+        {"tweet_id": str(i), "author": f"u{i}", "topic": "AI创作", "score": score,
+         "is_relevant": True, "is_noise": False}
+        for i, score in enumerate([9.5, 8.0, 6.9] + [7.5] * 12)
+    ]
+    _, _, selected = report.aggregate(items, "2026-09-20")
+    assert len(selected) == 10
+    assert selected[0]["score"] == 9.5
+    assert all(float(item["score"]) >= 7 for item in selected)
+
+    sparse = [items[0], items[2]]
+    _, _, selected = report.aggregate(sparse, "2026-09-20")
+    assert len(selected) == 1  # 不足不补数
+
+
+def test_discovery_rule_supports_queries():
+    from scripts.manage_rules import build_rule_value
+
+    value = build_rule_value([], ['lang:zh ("AI自媒体" OR "AI写作")'], ["retweet", "reply"])
+    assert "lang:zh" in value
+    assert "-is:retweet" in value
+    assert "-is:reply" in value
+
+
 if __name__ == "__main__":
     test_parse_and_dedup()
     test_delivery_idempotency()
     test_feishu_sign()
     test_push_worker_retry()
+    test_ai_creator_top10_and_threshold()
+    test_discovery_rule_supports_queries()
     print("\n🎉 全部冒烟测试通过")

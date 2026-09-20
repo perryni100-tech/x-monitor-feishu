@@ -81,7 +81,7 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,
     )
 
-    # 昨日信号早报：每天北京 9:00（= UTC 1:00）
+    # AI 自媒体 X 精选：默认每天北京 12:00（= UTC 4:00）
     report_utc_hour = (s.report_hour_beijing - 8) % 24
     if s.report_enabled:
         sched.add_job(

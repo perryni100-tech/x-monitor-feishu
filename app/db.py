@@ -139,7 +139,7 @@ def insert_tweet(t: dict[str, Any]) -> bool:
         # 推送范围：默认只推纯原创；放宽名单里的博主允许引用+回复（仍不推纯转推）
         relaxed = t["author_handle"] in get_settings().relaxed_authors
         pushable = not t.get("is_retweet") and (relaxed or not (t.get("is_reply") or t.get("is_quote")))
-        if is_new and pushable:
+        if is_new and pushable and get_settings().realtime_push_enabled:
             conn.execute(
                 "INSERT OR IGNORE INTO push_jobs(tweet_id, status, created_at, updated_at, next_retry_at) "
                 "VALUES (?, 'pending', ?, ?, ?)",

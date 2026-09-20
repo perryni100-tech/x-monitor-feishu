@@ -21,12 +21,15 @@ log = logging.getLogger(__name__)
 _BJ = timezone(timedelta(hours=8))
 
 _DS_SYS = (
-    "你是中文资讯预处理引擎。对用户给出的推文数组逐条分析，返回 JSON 对象 "
+    "你是中文 AI 自媒体选题主编。对用户给出的 X 推文数组逐条分析，返回 JSON 对象 "
     '{"items":[...]}。每个元素字段：'
-    "tweet_id(原样), author(原样), clean_summary(中文一句话概括), topic(中文主题词，尽量归并同义主题), "
-    "entities(关键实体数组), type(news|opinion|product|market|tutorial|casual|duplicate|low_info), "
-    "importance(1-5整数，5最重要), reason(中文，为何重要或为何是噪音), is_noise(true/false)。"
-    "闲聊/纯互动/无新增信息/重复转述判为 is_noise=true。只输出 JSON。"
+    "tweet_id(原样), author(原样), title(中文标题，24字内), summary(中文2-3句), "
+    "why_valuable(为什么值得AI自媒体创作者看), creator_takeaway(可转化的选题或行动启发), "
+    "topic(中文主题词，尽量归并同义主题), content_type(article|text|image|video), "
+    "score(0-10数字), reason(中文评分理由), is_relevant(true/false), is_noise(true/false)。"
+    "目标仅限 AI×内容生产×流量增长×商业化，包括实操方法、案例、工具工作流、平台变化和有证据的经验。"
+    "评分综合相关性、信息增量、可操作性、证据质量和新颖性；热度不能代替质量。"
+    "闲聊、纯互动、无新增信息、重复搬运、夸张营销判为噪音。只输出 JSON。"
 )
 
 _WRITER_SYS = (
@@ -113,14 +116,8 @@ def aggregate(classified: list[dict], day: str) -> tuple[list[dict], dict, list[
     noise = {"casual": 0, "duplicates": 0, "low_information": 0, "replies_or_interactions": 0}
 
     for c in classified:
-        typ = c.get("type")
-        if c.get("is_noise") or typ in ("casual", "duplicate", "low_info"):
-            if typ == "duplicate":
-                noise["duplicates"] += 1
-            elif typ == "low_info":
-                noise["low_information"] += 1
-            else:
-                noise["casual"] += 1
+        if c.get("is_noise") or not c.get("is_relevant"):
+            noise["casual"] += 1
             continue
         tp = (c.get("topic") or "其他").strip()
         topic_tw[tp] += 1
@@ -133,11 +130,59 @@ def aggregate(classified: list[dict], day: str) -> tuple[list[dict], dict, list[
         topic_stats.append({"topic": tp, "tweet_count": n, "author_count": len(topic_au[tp]), "trend": trend})
     topic_stats.sort(key=lambda x: (-x["tweet_count"], -x["author_count"]))
 
-    selected = sorted(
-        [c for c in classified if not c.get("is_noise") and c.get("type") not in ("casual", "duplicate", "low_info")],
-        key=lambda x: -int(x.get("importance", 1) or 1),
-    )[: settings.report_select_max]
+    eligible = [
+        c for c in classified
+        if not c.get("is_noise")
+        and c.get("is_relevant")
+        and float(c.get("score", 0) or 0) >= settings.report_min_score
+    ]
+    selected = sorted(eligible, key=lambda x: (-float(x.get("score", 0) or 0), str(x.get("tweet_id", ""))))[
+        : settings.report_select_max
+    ]
     return topic_stats, noise, selected
+
+
+def _radar_card(day: str, selected: list[dict], tweets_by_id: dict[str, dict], scanned: int) -> dict:
+    """渲染 AI 自媒体 Top-N；没有达到阈值的内容绝不补位。"""
+    count = len(selected)
+    elems: list[dict] = [{
+        "tag": "div",
+        "text": {"tag": "lark_md", "content": (
+            f"扫描 X 原创内容 **{scanned}** 条 · 达到质量线 **{count}** 条\n"
+            f"统计区间：{_fmt_cn_date(day)} 00:00-23:59，北京时间"
+        )},
+    }]
+    if not selected:
+        elems.append({"tag": "div", "text": {"tag": "lark_md", "content": "今天没有达到质量线的内容，不凑数。"}})
+
+    for rank, item in enumerate(selected, 1):
+        tweet = tweets_by_id.get(str(item.get("tweet_id")), {})
+        handle = item.get("author") or tweet.get("author_handle") or "unknown"
+        url = tweet.get("tweet_url") or f"https://x.com/{handle}"
+        media = int(tweet.get("media_count") or 0)
+        kind = {"article": "文章", "text": "文字", "image": "图文", "video": "视频"}.get(
+            item.get("content_type"), "帖子"
+        )
+        if media and kind == "文字":
+            kind = "图文/视频"
+        content = (
+            f"**TOP {rank}｜@{handle}｜{float(item.get('score', 0) or 0):.1f}/10｜{kind}**\n"
+            f"**{item.get('title') or item.get('topic') or '今日精选'}**\n"
+            f"{item.get('summary', '')}\n\n"
+            f"**为什么值得看**：{item.get('why_valuable') or item.get('reason', '')}\n"
+            f"**创作启发**：{item.get('creator_takeaway', '')}\n"
+            f"[查看 X 原帖 →]({url})"
+        )
+        elems.extend([
+            {"tag": "hr"},
+            {"tag": "div", "text": {"tag": "lark_md", "content": content}},
+        ])
+
+    return {
+        "config": {"wide_screen_mode": True},
+        "header": {"template": "orange", "title": {"tag": "plain_text", "content": f"AI 自媒体 · X 每日精选｜{day}"}},
+        "elements": elems,
+    }
 
 
 def continuity(day: str, topic_stats: list[dict]) -> list[dict]:
@@ -345,33 +390,22 @@ def generate_and_send(day: str | None = None) -> dict:
     day = day or yesterday_bj()
 
     tweets = collect(day)
-    id2url = {str(t["tweet_id"]): t["tweet_url"] for t in tweets}
+    tweets_by_id = {str(t["tweet_id"]): t for t in tweets}
 
     if not tweets:
-        card = {
-            "config": {"wide_screen_mode": True},
-            "header": {"template": "grey", "title": {"tag": "plain_text", "content": f"昨日信号 · {_fmt_cn_date(day)}早报"}},
-            "elements": [{"tag": "div", "text": {"tag": "lark_md", "content": "昨日没有抓到关注博主的原创推文。"}}],
-        }
+        card = _radar_card(day, [], {}, 0)
         feishu.send_card(settings.feishu_webhook_url, card, settings.feishu_secret)
         db.log_event("report", True, f"{day} 无推文")
         return {"day": day, "tweets": 0}
 
     classified = classify(tweets)
     topic_stats, noise, selected = aggregate(classified, day)
-    cont = continuity(day, topic_stats)
-    anom = anomalies(tweets, classified, topic_stats, day)
-    prefs = preference_topics()
-    tickers = extract_tickers(tweets)
-
-    rep = write_report(day, selected, topic_stats, cont, anom, prefs, id2url, tickers)
-
-    card = _card(day, rep, noise, id2url, tickers)
+    card = _radar_card(day, selected, tweets_by_id, len(tweets))
     feishu.send_card(settings.feishu_webhook_url, card, settings.feishu_secret)
 
     # 存档 + 趋势记忆
     db.save_daily_topics(day, topic_stats)
-    full = {"day": day, "report": rep, "topic_stats": topic_stats, "noise": noise}
+    full = {"day": day, "selected": selected, "topic_stats": topic_stats, "noise": noise}
     db.save_daily_report(day, json.dumps(full, ensure_ascii=False))
     db.log_event("report", True, f"{day} 推文{len(tweets)} 入选{len(selected)} 主题{len(topic_stats)}")
     log.info("早报已生成并推送：%s 推文%d 入选%d", day, len(tweets), len(selected))
